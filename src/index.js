@@ -96,9 +96,9 @@ const typeDefs = `#graphql
     product: [Product!]
   }
   type Query {
-    categories: [Category]
+    categories: [Categories]
     category(id: ID!): Category
-    products: [Product]
+    products: [Products]
     product(id: ID!): Product
   }
 
@@ -111,11 +111,12 @@ const typeDefs = `#graphql
 // Resolvers
 const resolvers = {
   Query: {
-    categories: () => categories
+    categories: () => categories,
+
   },  
   Category: {
     products: (parent) => 
-      parent.products.product
+      [parent.products.product]
   }, 
   Mutation: {
     createCategory: (_, { name, extref }) => {
