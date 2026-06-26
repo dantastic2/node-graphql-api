@@ -4,6 +4,7 @@ import fs from 'fs/promises';
 import xml2js from 'xml2js';
 import { JSONPath } from 'jsonpath-plus';
 
+
 // Helper function to parse XML file into a clean JS object
 async function parseXMLDatatoJSON(xmlPath) {
   const xmlData = await fs.readFile('./src/24405.xml', 'utf-8');
@@ -31,7 +32,6 @@ async function getValueByPath(obj, pathString) {
   }, obj);
 }
 
-
 const findNodeById = (node, targetId) => {
   if (node.id === targetId) return node;
   
@@ -43,22 +43,38 @@ const findNodeById = (node, targetId) => {
   }
   return null;
 };
-
 //const parentNode = findNodeById(treeData, 2);
+
+// Automates generation of basic getters for each top-level JSON key
+const generateResolvers = (dataSource) => {
+  const queryResolvers = {};
+
+  Object.keys(dataSource).forEach((key) => {
+    
+    //console.log(key);
+    // Dynamically names the resolver (e.g., "getBooks", "getAuthors")
+    const resolverName = `get${key.charAt(0).toUpperCase() + key.slice(1)}`;
+    
+    queryResolvers[resolverName] = () => dataSource[key];
+  });
+
+  return { Query: queryResolvers };
+};
+//const dynamicResolvers = generateResolvers(jsonData.restaurant);
+
+
+
+
+
+
+
 
 
 // Create JSON from XML Input
-
 const jsonData = await parseXMLDatatoJSON('./src/24405.xml');
 
 // Pull object data for tables
-const categories = await getJSONByPath(jsonData,'restaurant.menu.categories.category');
-
-
-//const data = JSON.stringify(jsonData);
-//console.log(data);
-
-
+const categories = await getJSONByPath(jsonData,'restaurant.menu.categories');
 
 // Type Definitions (Schema)
 const typeDefs = `#graphql
@@ -66,7 +82,7 @@ const typeDefs = `#graphql
     id: ID!
     name: String!
     extref: String!
-    products: Products!
+    products: Products
   }
   type Categories {
     category: [Category!]!
@@ -77,13 +93,13 @@ const typeDefs = `#graphql
     parentId: String
   }
   type Products {
-    product: Product!
+    product: [Product!]
   }
   type Query {
     categories: [Category]
     category(id: ID!): Category
     products: [Product]
-    product(id: ID!): Products
+    product(id: ID!): Product
   }
 
   type Mutation {
@@ -92,41 +108,14 @@ const typeDefs = `#graphql
 `;
 
 
-
-// Automates generation of basic getters for each top-level JSON key
-const generateResolvers = (dataSource) => {
-  const queryResolvers = {};
-
-  Object.keys(dataSource).forEach((key) => {
-    
-    console.log(key);
-    // Dynamically names the resolver (e.g., "getBooks", "getAuthors")
-    const resolverName = `get${key.charAt(0).toUpperCase() + key.slice(1)}`;
-    
-    queryResolvers[resolverName] = () => dataSource[key];
-  });
-
-  return { Query: queryResolvers };
-};
-
-const dynamicResolvers = generateResolvers(jsonData.restaurant.menu);
-console.log(dynamicResolvers.Query);
-
-
 // Resolvers
 const resolvers = {
   Query: {
-    categories: () => categories,
-
-  },
-  Product: {
-    parentId: (parent) => {
-      return parent.id;   }			  
-  },
+    categories: () => categories
+  },  
   Category: {
-    products: (parent) => {
-      categories.find(Category => parent === parent.id)
-    }, 
+    products: (parent) => 
+      parent.products.product
   }, 
   Mutation: {
     createCategory: (_, { name, extref }) => {
@@ -141,7 +130,7 @@ const resolvers = {
 // Server Initialization
 const server = new ApolloServer({
   typeDefs,
-  dynamicResolvers,
+  resolvers,
 });
 
 const { url } = await startStandaloneServer(server, {
